@@ -184,8 +184,6 @@ type DockerFileBuilder struct {
 	TestCacheDockerfiles map[string]struct{}
 }
 
-type logger func(string, ...interface{})
-
 // NewDockerFileBuilder will create a DockerFileBuilder initialized with dockerfiles, which
 // it will assume are all as yet unbuilt.
 func NewDockerFileBuilder() *DockerFileBuilder {
