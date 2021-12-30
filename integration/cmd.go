@@ -17,7 +17,6 @@ limitations under the License.
 package integration
 
 import (
-	"bytes"
 	"os/exec"
 	"testing"
 )
@@ -32,14 +31,11 @@ func RunCommandWithoutTest(cmd *exec.Cmd) ([]byte, error) {
 
 // RunCommand will run cmd and if it fails will output relevant info for debugging
 // before it fails. It must be run within the context of a test t and if the command
-// fails, it will the test. Returns the output from the command.
+// fails, it will fail the test. Returns the output from the command.
 func RunCommand(cmd *exec.Cmd, t *testing.T) []byte {
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Log(cmd.Args)
-		t.Log(stderr.String())
 		t.Log(string(output))
 		t.Error(err)
 		t.FailNow()

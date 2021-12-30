@@ -253,11 +253,8 @@ func (d *DockerFileBuilder) BuildDockerImage(t *testing.T, imageRepo, dockerfile
 		dockerCmd.Env = append(dockerCmd.Env, env...)
 	}
 
-	out, err := RunCommandWithoutTest(dockerCmd)
-	if err != nil {
-		return fmt.Errorf("Failed to build image %s with docker command \"%s\": %s %s", dockerImage, dockerCmd.Args, err, string(out))
-	}
-	t.Logf("Build image for Dockerfile %s as %s. docker build output: %s \n", dockerfile, dockerImage, out)
+	out := RunCommand(dockerCmd, t)
+	t.Logf("Build image for Dockerfile %s as %s. docker build output: %s \n", dockerfile, dockerImage, string(out))
 	return nil
 }
 
@@ -307,7 +304,7 @@ func (d *DockerFileBuilder) BuildImageWithContext(t *testing.T, config *integrat
 
 	kanikoImage := GetKanikoImage(imageRepo, dockerfile)
 	timer = timing.Start(dockerfile + "_kaniko")
-	if _, err := buildKanikoImage(t.Logf, dockerfilesPath, dockerfile, buildArgs, additionalKanikoFlags, kanikoImage,
+	if _, err := buildKanikoImage(t, dockerfilesPath, dockerfile, buildArgs, additionalKanikoFlags, kanikoImage,
 		contextDir, gcsBucket, serviceAccount, true); err != nil {
 		return err
 	}
@@ -425,7 +422,7 @@ func (d *DockerFileBuilder) buildRelativePathsImage(imageRepo, dockerfile, servi
 }
 
 func buildKanikoImage(
-	logf logger,
+	t *testing.T,
 	dockerfilesPath string,
 	dockerfile string,
 	buildArgs []string,
@@ -453,7 +450,7 @@ func buildKanikoImage(
 
 	// build kaniko image
 	additionalFlags := append(buildArgs, kanikoArgs...)
-	logf("Going to build image with kaniko: %s, flags: %s \n", kanikoImage, additionalFlags)
+	t.Logf("Going to build image with kaniko: %s, flags: %s \n", kanikoImage, additionalFlags)
 
 	dockerRunFlags := []string{"run", "--net=host",
 		"-e", benchmarkEnv,
@@ -481,10 +478,7 @@ func buildKanikoImage(
 
 	kanikoCmd := exec.Command("docker", dockerRunFlags...)
 
-	out, err := RunCommandWithoutTest(kanikoCmd)
-	if err != nil {
-		return "", fmt.Errorf("Failed to build image %s with kaniko command \"%s\": %s\n%s", kanikoImage, kanikoCmd.Args, err, string(out))
-	}
+	out := RunCommand(kanikoCmd, t)
 	if outputCheck := outputChecks[dockerfile]; outputCheck != nil {
 		if err := outputCheck(dockerfile, out); err != nil {
 			return "", fmt.Errorf("Output check failed for image %s with kaniko command : %s\n%s", kanikoImage, err, string(out))
