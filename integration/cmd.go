@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
 	"os/exec"
 	"testing"
 )
@@ -25,7 +26,6 @@ import (
 // for debugging before returning an error. It can be run outside the context of a test.
 func RunCommandWithoutTest(cmd *exec.Cmd) ([]byte, error) {
 	output, err := cmd.CombinedOutput()
-
 	return output, err
 }
 
@@ -33,9 +33,12 @@ func RunCommandWithoutTest(cmd *exec.Cmd) ([]byte, error) {
 // before it fails. It must be run within the context of a test t and if the command
 // fails, it will fail the test. Returns the output from the command.
 func RunCommand(cmd *exec.Cmd, t *testing.T) []byte {
-	output, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
 	if err != nil {
 		t.Log(cmd.Args)
+		t.Log(stderr.String())
 		t.Log(string(output))
 		t.Error(err)
 		t.FailNow()
