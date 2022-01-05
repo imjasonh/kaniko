@@ -9,8 +9,6 @@ replace (
 	github.com/opencontainers/runc v1.0.3 => github.com/opencontainers/runc v1.0.0-rc92
 )
 
-replace github.com/google/go-containerregistry => ../go-containerregistry
-
 require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-storage-blob-go v0.8.0
@@ -26,7 +24,7 @@ require (
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.6
-	github.com/google/go-containerregistry v0.4.1-0.20210128200529-19c2b639fab1
+	github.com/google/go-containerregistry v0.7.1-0.20220105185611-c6366444aa46
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/google/slowjam v1.0.0
 	github.com/hashicorp/go-memdb v0.0.0-20180223233045-1289e7fffe71 // indirect
