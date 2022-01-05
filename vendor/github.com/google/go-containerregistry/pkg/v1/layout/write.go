@@ -62,10 +62,9 @@ func (l Path) AppendImage(img v1.Image, options ...Option) error {
 		Digest:    d,
 	}
 
-	for _, opt := range options {
-		if err := opt(&desc); err != nil {
-			return err
-		}
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(&desc)
 	}
 
 	return l.AppendDescriptor(desc)
@@ -99,10 +98,9 @@ func (l Path) AppendIndex(ii v1.ImageIndex, options ...Option) error {
 		Digest:    d,
 	}
 
-	for _, opt := range options {
-		if err := opt(&desc); err != nil {
-			return err
-		}
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(&desc)
 	}
 
 	return l.AppendDescriptor(desc)
@@ -163,10 +161,9 @@ func (l Path) replaceDescriptor(append mutate.Appendable, matcher match.Matcher,
 		return err
 	}
 
-	for _, opt := range options {
-		if err := opt(desc); err != nil {
-			return err
-		}
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(desc)
 	}
 
 	add := mutate.IndexAddendum{
@@ -219,7 +216,6 @@ func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
 	}
 
 	return ioutil.WriteFile(l.path(name), data, perm)
-
 }
 
 // WriteBlob copies a file to the blobs/ directory in the Path from the given ReadCloser at
@@ -262,6 +258,19 @@ func (l Path) writeLayer(layer v1.Layer) error {
 	}
 
 	return l.WriteBlob(d, r)
+}
+
+// RemoveBlob removes a file from the blobs directory in the Path
+// at blobs/{hash.Algorithm}/{hash.Hex}
+// It does *not* remove any reference to it from other manifests or indexes, or
+// from the root index.json.
+func (l Path) RemoveBlob(hash v1.Hash) error {
+	dir := l.path("blobs", hash.Algorithm)
+	err := os.Remove(filepath.Join(dir, hash.Hex))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // WriteImage writes an image, including its manifest, config and all of its
@@ -314,6 +323,14 @@ func (l Path) WriteImage(img v1.Image) error {
 	return l.WriteBlob(d, ioutil.NopCloser(bytes.NewReader(manifest)))
 }
 
+type withLayer interface {
+	Layer(v1.Hash) (v1.Layer, error)
+}
+
+type withBlob interface {
+	Blob(v1.Hash) (io.ReadCloser, error)
+}
+
 func (l Path) writeIndexToFile(indexFile string, ii v1.ImageIndex) error {
 	index, err := ii.IndexManifest()
 	if err != nil {
@@ -343,6 +360,24 @@ func (l Path) writeIndexToFile(indexFile string, ii v1.ImageIndex) error {
 		default:
 			// TODO: The layout could reference arbitrary things, which we should
 			// probably just pass through.
+
+			var blob io.ReadCloser
+			// Workaround for #819.
+			if wl, ok := ii.(withLayer); ok {
+				layer, lerr := wl.Layer(desc.Digest)
+				if lerr != nil {
+					return lerr
+				}
+				blob, err = layer.Compressed()
+			} else if wb, ok := ii.(withBlob); ok {
+				blob, err = wb.Blob(desc.Digest)
+			}
+			if err != nil {
+				return err
+			}
+			if err := l.WriteBlob(desc.Digest, blob); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -374,7 +409,6 @@ func (l Path) WriteIndex(ii v1.ImageIndex) error {
 
 	indexFile := filepath.Join("blobs", h.Algorithm, h.Hex)
 	return l.writeIndexToFile(indexFile, ii)
-
 }
 
 // Write constructs a Path at path from an ImageIndex.
