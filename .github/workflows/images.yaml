@@ -20,6 +20,7 @@ jobs:
     permissions:
       contents: read  # Read the repo contents.
       id-token: write # Produce identity token for keyless signing.
+      packages: write # Push container images.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -34,43 +35,38 @@ jobs:
         - image: executor
           dockerfile: ./deploy/Dockerfile
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
-          image-name: gcr.io/kaniko-project/executor
+          image-name: ghcr.io/${{ github.repository }}/executor
           tag: ${{ github.sha }}
           release-tag: latest
 
         - image: executor-debug
           dockerfile: ./deploy/Dockerfile_debug
           platforms: linux/amd64,linux/arm64,linux/s390x
-          image-name: gcr.io/kaniko-project/executor
+          image-name: ghcr.io/${{ github.repository }}/executor
           tag: ${{ github.sha }}-debug
           release_tag: debug
 
         - image: executor-slim
           dockerfile: ./deploy/Dockerfile_slim
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
-          image-name: gcr.io/kaniko-project/executor
+          image-name: ghcr.io/${{ github.repository }}/executor
           tag: ${{ github.sha }}-slim
           release-tag: slim
 
         - image: warmer
           dockerfile: ./deploy/Dockerfile_warmer
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
-          image-name: gcr.io/kaniko-project/warmer
+          image-name: ghcr.io/${{ github.repository }}/warmer
           tag: ${{ github.sha }}
           release-tag: latest
 
     steps:
     - uses: actions/checkout@v2
-
-    # Setup auth if not a PR.
-    - if: github.event_name != 'pull_request'
-      uses: google-github-actions/setup-gcloud@v0.5.0
+    - uses: docker/login-action@v1
       with:
-        service_account_key: ${{ secrets.GCR_DEVOPS_SERVICE_ACCOUNT_KEY }}
-        project_id: kaniko-project
-        export_default_credentials: true
-    - if: github.event_name != 'pull_request'
-      run: gcloud auth configure-docker
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
 
     # Build and push with Docker.
     - uses: docker/setup-qemu-action@v1
@@ -98,9 +94,6 @@ jobs:
       env:
         COSIGN_EXPERIMENTAL: "true"
       run: |
-        cosign sign \
-            --key gcpkms://projects/kaniko-project/locations/global/keyRings/cosign/cryptoKeys/cosign \
-            ${{ matrix.image-name }}@${{ steps.build-and-push.outputs.digest }}
         cosign sign ${{ matrix.image-name }}@${{ steps.build-and-push.outputs.digest }}
 
     # If a tag push, use crane to add more tags.
